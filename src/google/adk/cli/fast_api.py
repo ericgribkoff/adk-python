@@ -837,6 +837,26 @@ def get_fast_api_app(
       finally:
         context.detach(token)
 
+    from fastapi.exceptions import RequestValidationError
+    
+    @app.exception_handler(RequestValidationError)
+    async def _log_422(request: Request, exc: RequestValidationError):
+      try:
+        raw_body = await request.body()
+      except Exception:
+        raw_body = b"<unreadable>"
+      logger.error(
+          "422 on %s: headers=%s body=%r errors=%s",
+          request.url.path,
+          list(request.headers.items()),
+          raw_body[:2000],
+          exc.errors(),
+      )
+      return JSONResponse(
+          status_code=422,
+          content={"detail": exc.errors()},
+      )
+
     @app.post(
         "/api/reasoning_engine",
         response_model_exclude_none=True,
